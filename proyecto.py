@@ -1,4 +1,9 @@
 from conexion import conectar_asistencia
+from mysql.connector import Error
+#SERGIO IBAÑEZ MONTIEL
+# Alias compatible con las llamadas existentes del programa.
+conectar_bd = conectar_asistencia
+
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from datetime import datetime, date
@@ -1173,7 +1178,7 @@ def abrir_director():
                         messagebox.showerror("Error al guardar", str(error))
             def limpiar_seguimiento():
                 ent_alumno.delete(0, "end")
-                ent_motivo.delete(0, "end")
+                ent_comportamiento.delete(0, "end")
                 vista.delete("1.0", "end")
     
             def abrir_segimiento():
