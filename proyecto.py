@@ -1,9 +1,22 @@
-from conexion import conectar_asistencia
-from mysql.connector import Error
-#SERGIO IBAÑEZ MONTIEL
-# Alias compatible con las llamadas existentes del programa.
-conectar_bd = conectar_asistencia
+<<<<<<< HEAD
+import sqlite3
 
+conexion = sqlite3.connect("reportes_conducta.db")
+cursor = conexion.cursor()
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS reportes_conducta (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fecha TEXT,
+    nombre TEXT,
+    tipo TEXT,
+    gravedad TEXT,
+    descripcion TEXT
+)
+""")
+conexion.commit()
+=======
+from conexion import conectar_asistencia
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from datetime import datetime, date
@@ -199,7 +212,7 @@ def cargar_alumnos():
 def abrir_docente():
     alumnos = cargar_alumnos()
     registros = []
-    reportes_conducta = []
+    
     sel_nombre = None
     vista_docente_actual = "Inicio"
 
@@ -625,7 +638,8 @@ def abrir_docente():
             desc = texto_desc.get("1.0", "end").strip()
             if not desc:
                 messagebox.showwarning("Falta descripción", "Escribe qué ocurrió."); return
-            reportes_conducta.append({"fecha": fecha, "nombre": alumno, "tipo": tipo_var.get(), "gravedad": gravedad_var.get(), "descripcion": desc})
+            cursor.execute("INSERT INTO reportes_conducta (fecha, nombre, tipo, gravedad, descripcion) VALUES (?,?,?,?,?)", (fecha, alumno, tipo_var.get(), gravedad_var.get(), desc))
+            conexion.commit()
             actualizar_reportes()
             texto_desc.delete("1.0", "end")
             messagebox.showinfo("Guardado", "Reporte de conducta registrado exitosamente.")
