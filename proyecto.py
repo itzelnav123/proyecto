@@ -1,68 +1,21 @@
+from conexion import conectar_asistencia
+
 import tkinter as tk
+
 from tkinter import ttk, messagebox, filedialog
+
 from datetime import datetime, date
+
 import calendar
 import mysql.connector
-from mysql.connector import Error
-
-
+from mysql.connector import Error 
 def conectar_bd():
-    try:
-        conexion = mysql.connector.connect(
-            host="localhost",
-            user="root",
-            database="sistema_alerta_temprana"
-        )
-
-        if conexion.is_connected():
-            print("Conexion exitosa a MySQL")
-            return conexion
-    
-    except Error as e:
-        messagebox.showerror("Error de conexión", str(e))
-        return None
-
-    conexion=conectar_bd()
-
-    if conexion:
-        conexion.close
-
-
-def guardar_grupo(id_grupo,nombre_grupo,grado,grupo):
-    conexion=conectar_bd()
-
-    if conexion:
-        try:
-            cursor = conexion.cursor()
-            
-            sql= """
-             INSERT INTO grupos
-                (id_grupo, nombre_grupo, grado, grupo)
-                VALUES (%s, %s, %s, %s)
-            """
-            valores = (id_grupo, nombre_grupo, grado, grupo)
-
-            cursor.execute(sql, valores)
-            conexion.commit()
-
-            messagebox.showinfo("Grupo guardado correctamente")
-
-        except Error as e:
-            messagebox.showinfo("Error",str(e))
-
-        finally:
-            cursor.close()
-            conexion.close()
-
-            
-
-
-
-
-
-    
-        
-    
+    return mysql.connector.connect(
+        host="localhost",
+        user="root",
+        password="",
+        database="escuela"
+    )
 def crear_tablas():
     con = conectar_bd()
     cur =con.cursor()
@@ -1365,3 +1318,11 @@ ventana.after(100, ajustar_diseno)
 actualizar_reloj()
 entrada_usuario.focus_set()
 ventana.mainloop()
+
+con = conectar_bd()
+
+if con:
+
+    print("CONEXION EXITOSA CON MYSQL")
+
+    con.close()
