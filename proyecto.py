@@ -612,7 +612,7 @@ def abrir_docente():
         for w in menu_frame_doc.winfo_children():
             w.destroy()
         opciones_doc = [("⌂   Inicio", "Inicio"), ("▤   Justificantes", "Justificantes"), ("✎   Reportes", "Reportes")]
-        compacto = ventana_docente.winfo_width() < 760
+        compacto = False
         for texto, clave in opciones_doc:
             texto_boton = texto if not compacto else texto.split("   ")[-1]
             seleccionado = vista_docente_actual == clave
@@ -625,8 +625,11 @@ def abrir_docente():
                             anchor="w" if not compacto else "center",
                             padx=16 if not compacto else 4, pady=12,
                             relief="flat", bd=0, cursor="hand2")
-            btn.pack(fill="x" if not compacto else "left", expand=bool(compacto),
-                     padx=7 if not compacto else 1, pady=2)
+            btn.pack(
+                fill="x" if not compacto else "y",
+                side="top" if not compacto else "left",
+                expand=bool(compacto),
+                padx=7 if not compacto else 1, pady=2)
             botones_menu_doc.append(btn)
 
     def reconstruir_interfaz_docente():
@@ -865,7 +868,7 @@ def abrir_director():
             w.destroy()
         opciones = [("⌂   Inicio", "inicio"), ("▤   Asistencia", "asistencia"),
                     ("▦   Calendario", "calendario"), ("✎   Carta compromiso", "carta")]
-        compacto = ventana_dir.winfo_width() < 760
+        compacto = False
         for texto, clave in opciones:
             texto_boton = texto if not compacto else texto.split("   ")[-1]
             seleccionado = vista_actual == clave
@@ -878,7 +881,8 @@ def abrir_director():
                       anchor="w" if not compacto else "center",
                       padx=16 if not compacto else 4, pady=12,
                       relief="flat", bd=0, cursor="hand2").pack(
-                          fill="x" if not compacto else "left",
+                          fill="x" if not compacto else "y",
+                          side="top" if not compacto else "left",
                           expand=bool(compacto), padx=7 if not compacto else 1, pady=2)
 
     def mostrar_vista(clave):
