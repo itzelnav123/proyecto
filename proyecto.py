@@ -15,7 +15,7 @@ def crear_tablas():
     cur = con.cursor()
 
     #Yaretzi
-    #SERGIO IBAÑEZ MONTIEL
+    #SERGIO IBAÑEZ MONTIEL 19/11/2026
     cur.execute("""CREATE TABLE IF NOT EXISTS justificantes (
         id INT AUTO_INCREMENT PRIMARY KEY,
         nombre VARCHAR(100),
