@@ -22,38 +22,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from datetime import datetime, date
 import calendar
-import mysql.connector
-from mysql.connector import Error 
-def conectar_bd():
-    return mysql.connector.connect(
-        host="localhost",
-        user="root",
-        password="",
-        database="escuela"
-    )
-def crear_tablas():
-    con = conectar_bd()
-    cur =con.cursor()
-    #Yaretzi
-    cur.execute("""CREATE TABLE IF NOT EXISTS justificantes (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        nombre VARCHAR(100),
-        fecha VARCHAR(20),
-        estado VARCHAR(20),
-        motivo VARCHAR(200)
-    )""")
 
-    cur.execute("""CREATE TABLE IF NOT EXISTS eventos_escolares (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        fecha VARCHAR(20),
-        tipo VARCHAR(50),
-        descripcion VARCHAR(200)
-    )""")
-
-    con.commit()
-    con.close()
-
-crear_tablas()
 
 modo_actual = "oscuro"
 
@@ -602,12 +571,9 @@ def abrir_docente():
 
         def actualizar_tabla_justificantes():
             for f in tabla.get_children(): tabla.delete(f)
-            con = conectar_bd()
-            cur = con.cursor()   
-            cur.execute("SELECT nombre, fecha, estado, motivo FROM justificantes")
-            for r in cur.fetchall():
-                tabla.insert("", "end", values=r)
-            con.close()
+            for r in registros:
+                if r["estado"] in ("Falta", "Justificada"):
+                    tabla.insert("", "end", values=(r["nombre"], r["fecha"], r["estado"]))
 
         def justificar():
             alumno = combo_alumno.get().strip()
@@ -615,14 +581,12 @@ def abrir_docente():
             motivo = entrada_motivo.get().strip()
             if not alumno or not fecha:
                 messagebox.showwarning("Faltan datos", "Selecciona alumno y fecha."); return
-            con = conectar_bd()
-            cur = con.cursor()
-            cur.execute("INSERT INTO justificantes (nombre, fecha, estado, motivo) VALUES (%s, %s, %s, %s)",
-            (alumno, fecha, "Justificada", motivo))
-            con.commit()
-            con.close()
-            messagebox.showinfo("OK", f"Justificada: {motivo}")
-            actualizar_tabla_justificantes()
+            for r in registros:
+                if r["nombre"] == alumno and r["fecha"] == fecha and r["estado"] == "Falta":
+                    r["estado"] = "Justificada"
+                    messagebox.showinfo("OK", f"Justificada: {motivo}")
+                    actualizar_tabla_justificantes(); return
+            messagebox.showwarning("No encontrada", "No hay falta registrada ese día para este alumno.")
 
         boton_padre(form, "REGISTRAR JUSTIFICANTE", justificar, C("verde"), "#FFFFFF").pack(anchor="w", pady=10)
         actualizar_tabla_justificantes()
@@ -1009,7 +973,7 @@ def abrir_director():
             w.destroy()
         opciones = [("⌂   Inicio", "inicio"), ("▤   Asistencia", "asistencia"),
                     ("▦   Calendario", "calendario"), ("✎   Carta compromiso", "carta")]
-        compacto = False
+        compacto = ventana_dir.winfo_width() < 760
         for texto, clave in opciones:
             texto_boton = texto if not compacto else texto.split("   ")[-1]
             seleccionado = vista_actual == clave
@@ -1031,7 +995,7 @@ def abrir_director():
         vista_actual = clave
         construir_menu()
         {"inicio": mostrar_inicio, "asistencia": mostrar_asistencia,
-         "calendario": mostrar_calendario, "carta": mostrar_carta}[clave]()
+         "calendario": mostrar_calendario, "carta": mostrar_carta, "seguimiento":mostrar_seguimiento,}[clave]()
 
     def mostrar_inicio():
         limpiar_panel()
@@ -1047,7 +1011,8 @@ def abrir_director():
         accesos = tk.Frame(panel, bg=C_DIR("fondo")); accesos.pack(fill="x", padx=22)
         for texto, clave, color in [("Listas de asistencia", "asistencia", C_DIR("acento")),
                                     ("Calendario escolar", "calendario", C_DIR("encabezado1")),
-                                    ("Carta compromiso", "carta", C_DIR("verde"))]:
+                                    ("Carta compromiso", "carta", C_DIR("verde")),
+                                    ("Seguimiento", "seguimiento", C_DIR("verde"))]:
             boton_padre(accesos, texto, lambda k=clave: mostrar_vista(k), color).pack(side="left", padx=(0, 7), pady=4)
         nota = tk.Frame(panel, bg=C_DIR("tarjeta"), highlightbackground=C_DIR("borde"), highlightthickness=1)
         nota.pack(fill="x", padx=22, pady=22)
@@ -1108,14 +1073,9 @@ def abrir_director():
         ent_evento = ttk.Entry(fila, font=("Segoe UI", 10)); ent_evento.pack(side="left", fill="x", expand=True, padx=(0, 8))
         zona_eventos = tk.Frame(panel, bg=C_DIR("fondo")); zona_eventos.pack(fill="x", padx=22, pady=(0, 18))
         def lista_eventos():
-            for widget in zona_eventos.winfo_children():
-                widget.destroy()
-            con = conectar_bd()
-            cur = con.cursor()
-            cur.execute("SELECT nombre, fecha FROM eventos")
-            eventos_db = cur.fetchall()
-            con.close()
-            if not eventos_db:
+            for w in zona_eventos.winfo_children(): w.destroy()
+            etiqueta(zona_eventos, "Eventos registrados", 11, True).pack(anchor="w", pady=(0, 7))
+            if not eventos:
                 etiqueta(zona_eventos, "Todavía no hay eventos.", 10, color=C_DIR("secundario")).pack(anchor="w")
             for nombre, fecha in eventos_db:
                 etiqueta(zona_eventos, f"• {fecha} - {nombre}", 10).pack(anchor="w", pady=2)
@@ -1123,12 +1083,7 @@ def abrir_director():
             texto_evento = ent_evento.get().strip()
             if not texto_evento:
                 messagebox.showwarning("Falta el evento", "Escribe el nombre del evento."); return
-            fecha_hoy = datetime.now().strftime("%d/%m/%Y")
-            con = conectar_bd()
-            cur = con.cursor()
-            cur.execute("INSERT INTO eventos (nombre, fecha) VALUES (%s, %s)", (texto_evento, fecha_hoy))
-            con.commit()
-            con.close()
+            eventos.append((texto_evento, datetime.now().strftime("%d/%m/%Y")))
             ent_evento.delete(0, tk.END)
             messagebox.showinfo("Evento agregado", "El evento quedó registrado en la sesión.")
             lista_eventos()
@@ -1176,10 +1131,86 @@ def abrir_director():
                     messagebox.showinfo("Guardado", "La carta se guardó correctamente.")
                 except OSError as error:
                     messagebox.showerror("Error al guardar", str(error))
+        def limpiar_carta():
+            ent_alumno.delete(0, "end")
+            ent_motivo.delete(0, "end")
+            vista.delete("1.0", "end")
+
+        def abrir_carta():
+            ruta_abrir = filedialog.askopenfilename(title="Abrir carta", filetypes=[("Texto", "*.txt")])
+            if not ruta_abrir:
+                return
+            with open(ruta_abrir, "r", encoding="utf-8") as archivo:
+                texto = archivo.read()
+            vista.delete("1.0", "end")
+            vista.insert("1.0", texto)
+
         acciones = tk.Frame(form, bg=C_DIR("tarjeta")); acciones.pack(fill="x", padx=16, pady=(0, 14))
         boton_padre(acciones, "Generar carta", generar).pack(side="left", padx=(0, 8))
         boton_padre(acciones, "Guardar como TXT", guardar_txt, C_DIR("verde"), "#FFFFFF").pack(side="left")
+        boton_padre(acciones, "Limpiar", limpiar_carta,C_DIR("rojo"), "#FFFFFF").pack(side="left")
+        boton_padre(acciones, "Abrir carta", abrir_carta,C_DIR("acento"), "#FFFFFF").pack(side="left")
 
+
+    def mostrar_seguimiento():
+            limpiar_panel()
+            encabezado("Seguimientos", "Genera y guarda una carta para el tutor sobre los seguimientos del alumno.")
+            form = tk.Frame(panel, bg=C_DIR("tarjeta"), highlightbackground=C_DIR("borde"), highlightthickness=1)
+            form.pack(fill="x", padx=22, pady=(0, 18))
+            etiqueta(form, "Datos de la carta", 12, True, bg=C_DIR("tarjeta")).pack(anchor="w", padx=16, pady=(14, 8))
+            campos = tk.Frame(form, bg=C_DIR("tarjeta")); campos.pack(fill="x", padx=16)
+            campos.columnconfigure((0, 1), weight=1, uniform="seguimiento")
+            etiqueta(campos, "Nombre del alumno", 10, bg=C_DIR("tarjeta")).grid(row=0, column=0, sticky="w", pady=4)
+            ent_alumno = ttk.Entry(campos, font=("Segoe UI", 10)); ent_alumno.grid(row=1, column=0, sticky="ew", padx=(0, 8), pady=(0, 10))
+            etiqueta(campos, "Comportamiento", 10, bg=C_DIR("tarjeta")).grid(row=0, column=1, sticky="w", pady=4)
+            ent_comportamiento = ttk.Entry(campos, font=("Segoe UI", 10)); ent_comportamiento.grid(row=1, column=1, sticky="ew", pady=(0, 10))
+            etiqueta(form, "Vista previa", 10, True, color=C_DIR("secundario"), bg=C_DIR("tarjeta")).pack(anchor="w", padx=16)
+            vista = tk.Text(form, height=9, font=("Segoe UI", 10), bg=C_DIR("campo"), fg=C_DIR("texto_campo"), insertbackground=C_DIR("texto_campo"), relief="flat", wrap="word", padx=12, pady=10)
+            vista.pack(fill="both", expand=True, padx=16, pady=9)
+            def generar_seguimiento():
+                alumno, comportamiento = ent_alumno.get().strip(), ent_comportamiento.get().strip()
+                if not alumno or not comportamiento:
+                    messagebox.showwarning("Datos incompletos", "Completa el nombre y el comportamiento."); return
+                carta = ("Segimiento Escolar\n"
+                         "ESCUELA PRIMARIA NEZAHUALCÓYOTL\n"
+                         "====================================\n\n"
+                         f"Fecha: {datetime.now().strftime('%d/%m/%Y')}\n\n"
+                         f"El alumno, {alumno}, se comporta: {comportamiento}.\n\n"
+                         "Por su comportamiento se llevara a cabo la siguiente accion.\n\n"
+                         "Firma de dirección: _____________________")
+                vista.delete("1.0", tk.END); vista.insert("1.0", carta)
+            def guardar_txt_seguimiento():
+                texto_seguimiento = vista.get("1.0", "end-1c").strip()
+                if not texto_seguimiento:
+                    messagebox.showwarning("Sin contenido", "Primero genera la carta."); return
+                ruta = filedialog.asksaveasfilename(title="Guardar carta", defaultextension=".txt", filetypes=[("Archivo de texto", "*.txt")])
+                if ruta:
+                    try:
+                        with open(ruta, "w", encoding="utf-8") as archivo:
+                            archivo.write(texto_seguimiento)
+                        messagebox.showinfo("Guardado", "La carta se guardó correctamente.")
+                    except OSError as error:
+                        messagebox.showerror("Error al guardar", str(error))
+            def limpiar_seguimiento():
+                ent_alumno.delete(0, "end")
+                ent_motivo.delete(0, "end")
+                vista.delete("1.0", "end")
+    
+            def abrir_segimiento():
+                ruta_abrir = filedialog.askopenfilename(title="Abrir seguimiento", filetypes=[("Texto", "*.txt")])
+                if not ruta_abrir:
+                    return
+                with open(ruta_abrir, "r", encoding="utf-8") as archivo:
+                    texto = archivo.read()
+                vista.delete("1.0", "end")
+                vista.insert("1.0", texto)
+    
+            acciones = tk.Frame(form, bg=C_DIR("tarjeta")); acciones.pack(fill="x", padx=16, pady=(0, 14))
+            boton_padre(acciones, "Generar carta", generar_seguimiento).pack(side="left", padx=(0, 8))
+            boton_padre(acciones, "Guardar como TXT", guardar_txt_seguimiento, C_DIR("verde"), "#FFFFFF").pack(side="left")
+            boton_padre(acciones, "Limpiar", limpiar_seguimiento,C_DIR("rojo"), "#FFFFFF").pack(side="left")
+            boton_padre(acciones, "Abrir carta", abrir_segimiento,C_DIR("acento"), "#FFFFFF").pack(side="left")
+    
     configurar_estilos()
     construir_menu()
     mostrar_vista("inicio")
