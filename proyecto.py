@@ -2,7 +2,38 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from datetime import datetime, date
 import calendar
+import mysql.connector
+def conectar():
+    return mysql.connector.connect(
+        host="localhost",
+        user="root",
+        password="",
+        database="escuela"
+    )
+def crear_tablas():
+    con = conectar()
+    cur = con.cursor()
 
+    #Yaretzi
+    cur.execute("""CREATE TABLE IF NOT EXISTS justificantes (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        nombre VARCHAR(100),
+        fecha VARCHAR(20),
+        estado VARCHAR(20),
+        motivo VARCHAR(200)
+    )""")
+
+    cur.execute("""CREATE TABLE IF NOT EXISTS eventos_escolares (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        fecha VARCHAR(20),
+        tipo VARCHAR(50),
+        descripcion VARCHAR(200)
+    )""")
+
+    con.commit()
+    con.close()
+
+crear_tablas()
 
 modo_actual = "oscuro"
 
@@ -468,16 +499,19 @@ def abrir_docente():
 
         marco_tabla = tk.LabelFrame(panel_doc, text=" Faltas y justificantes ", bg=C("fondo"), fg=C("texto"), font=("Segoe UI", 10, "bold"))
         marco_tabla.pack(fill="both", expand=True, padx=22, pady=10)
-        tabla = ttk.Treeview(marco_tabla, columns=("nombre", "fecha", "estado"), show="headings", height=8)
-        for c, t in [("nombre", "Alumno"), ("fecha", "Fecha"), ("estado", "Estado")]:
+        tabla = ttk.Treeview(marco_tabla, columns=("nombre", "fecha", "estado", "motivo"), show="headings", height=8)
+        for c, t in [("nombre", "Alumno"), ("fecha", "Fecha"), ("estado", "Estado"), ("motivo", "Motivo")]:
             tabla.heading(c, text=t); tabla.column(c, width=150, anchor="w")
         tabla.pack(fill="both", expand=True, padx=5, pady=5)
 
         def actualizar_tabla_justificantes():
             for f in tabla.get_children(): tabla.delete(f)
-            for r in registros:
-                if r["estado"] in ("Falta", "Justificada"):
-                    tabla.insert("", "end", values=(r["nombre"], r["fecha"], r["estado"]))
+            con = conectar()
+            cur = con.cursor()   
+            cur.execute("SELECT nombre, fecha, estado, motivo FROM justificantes")
+            for r in cur.fetchall():
+                tabla.insert("", "end", values=r)
+            con.close()
 
         def justificar():
             alumno = combo_alumno.get().strip()
@@ -485,12 +519,14 @@ def abrir_docente():
             motivo = entrada_motivo.get().strip()
             if not alumno or not fecha:
                 messagebox.showwarning("Faltan datos", "Selecciona alumno y fecha."); return
-            for r in registros:
-                if r["nombre"] == alumno and r["fecha"] == fecha and r["estado"] == "Falta":
-                    r["estado"] = "Justificada"
-                    messagebox.showinfo("OK", f"Justificada: {motivo}")
-                    actualizar_tabla_justificantes(); return
-            messagebox.showwarning("No encontrada", "No hay falta registrada ese día para este alumno.")
+            con = conectar()
+            cur = con.cursor()
+            cur.execute("INSERT INTO justificantes (nombre, fecha, estado, motivo) VALUES (%s, %s, %s, %s)",
+            (alumno, fecha, "Justificada", motivo))
+            con.commit()
+            con.close()
+            messagebox.showinfo("OK", f"Justificada: {motivo}")
+            actualizar_tabla_justificantes()
 
         boton_padre(form, "REGISTRAR JUSTIFICANTE", justificar, C("verde"), "#FFFFFF").pack(anchor="w", pady=10)
         actualizar_tabla_justificantes()
@@ -576,7 +612,7 @@ def abrir_docente():
         for w in menu_frame_doc.winfo_children():
             w.destroy()
         opciones_doc = [("⌂   Inicio", "Inicio"), ("▤   Justificantes", "Justificantes"), ("✎   Reportes", "Reportes")]
-        compacto = ventana_docente.winfo_width() < 760
+        compacto = False
         for texto, clave in opciones_doc:
             texto_boton = texto if not compacto else texto.split("   ")[-1]
             seleccionado = vista_docente_actual == clave
@@ -589,8 +625,11 @@ def abrir_docente():
                             anchor="w" if not compacto else "center",
                             padx=16 if not compacto else 4, pady=12,
                             relief="flat", bd=0, cursor="hand2")
-            btn.pack(fill="x" if not compacto else "left", expand=bool(compacto),
-                     padx=7 if not compacto else 1, pady=2)
+            btn.pack(
+                fill="x" if not compacto else "y",
+                side="top" if not compacto else "left",
+                expand=bool(compacto),
+                padx=7 if not compacto else 1, pady=2)
             botones_menu_doc.append(btn)
 
     def reconstruir_interfaz_docente():
@@ -830,6 +869,8 @@ def abrir_director():
         opciones = [("⌂   Inicio", "inicio"), ("▤   Asistencia", "asistencia"),
                     ("▦   Calendario", "calendario"), ("✎   Carta compromiso", "carta"),("✎   Seguimiento", "seguimiento")]
         compacto = ventana_dir.winfo_width() < 760
+                    ("▦   Calendario", "calendario"), ("✎   Carta compromiso", "carta")]
+        compacto = False
         for texto, clave in opciones:
             texto_boton = texto if not compacto else texto.split("   ")[-1]
             seleccionado = vista_actual == clave
@@ -842,7 +883,8 @@ def abrir_director():
                       anchor="w" if not compacto else "center",
                       padx=16 if not compacto else 4, pady=12,
                       relief="flat", bd=0, cursor="hand2").pack(
-                          fill="x" if not compacto else "left",
+                          fill="x" if not compacto else "y",
+                          side="top" if not compacto else "left",
                           expand=bool(compacto), padx=7 if not compacto else 1, pady=2)
 
     def mostrar_vista(clave):
@@ -928,17 +970,27 @@ def abrir_director():
         ent_evento = ttk.Entry(fila, font=("Segoe UI", 10)); ent_evento.pack(side="left", fill="x", expand=True, padx=(0, 8))
         zona_eventos = tk.Frame(panel, bg=C_DIR("fondo")); zona_eventos.pack(fill="x", padx=22, pady=(0, 18))
         def lista_eventos():
-            for w in zona_eventos.winfo_children(): w.destroy()
-            etiqueta(zona_eventos, "Eventos registrados", 11, True).pack(anchor="w", pady=(0, 7))
-            if not eventos:
+            for widget in zona_eventos.winfo_children():
+                widget.destroy()
+            con = conectar()
+            cur = con.cursor()
+            cur.execute("SELECT nombre, fecha FROM eventos")
+            eventos_db = cur.fetchall()
+            con.close()
+            if not eventos_db:
                 etiqueta(zona_eventos, "Todavía no hay eventos.", 10, color=C_DIR("secundario")).pack(anchor="w")
-            for nombre, fecha in eventos:
-                etiqueta(zona_eventos, f"• {fecha} — {nombre}", 10).pack(anchor="w", pady=2)
+            for nombre, fecha in eventos_db:
+                etiqueta(zona_eventos, f"• {fecha} - {nombre}", 10).pack(anchor="w", pady=2)
         def agregar_evento():
             texto_evento = ent_evento.get().strip()
             if not texto_evento:
                 messagebox.showwarning("Falta el evento", "Escribe el nombre del evento."); return
-            eventos.append((texto_evento, datetime.now().strftime("%d/%m/%Y")))
+            fecha_hoy = datetime.now().strftime("%d/%m/%Y")
+            con = conectar()
+            cur = con.cursor()
+            cur.execute("INSERT INTO eventos (nombre, fecha) VALUES (%s, %s)", (texto_evento, fecha_hoy))
+            con.commit()
+            con.close()
             ent_evento.delete(0, tk.END)
             messagebox.showinfo("Evento agregado", "El evento quedó registrado en la sesión.")
             lista_eventos()
@@ -1048,7 +1100,7 @@ def abrir_director():
                         messagebox.showerror("Error al guardar", str(error))
             def limpiar_seguimiento():
                 ent_alumno.delete(0, "end")
-                ent_comportamiento.delete(0, "end")
+                ent_motivo.delete(0, "end")
                 vista.delete("1.0", "end")
     
             def abrir_segimiento():
