@@ -1,11 +1,7 @@
 from conexion import conectar_asistencia
-
 import tkinter as tk
-
 from tkinter import ttk, messagebox, filedialog
-
 from datetime import datetime, date
-
 import calendar
 import mysql.connector
 from mysql.connector import Error 
