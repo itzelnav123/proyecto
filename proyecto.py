@@ -2,6 +2,67 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from datetime import datetime, date
 import calendar
+import mysql.connector
+from mysql.connector import Error
+
+
+def conectar_bd():
+    try:
+        conexion = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            database="sistema_alerta_temprana"
+        )
+
+        if conexion.is_connected():
+            print("Conexion exitosa a MySQL")
+            return conexion
+    
+    except Error as e:
+        messagebox.showerror("Error de conexión", str(e))
+        return None
+
+    conexion=conectar_bd()
+
+    if conexion:
+        conexion.close
+
+
+def guardar_grupo(id_grupo,nombre_grupo,grado,grupo):
+    conexion=conectar_bd()
+
+    if conexion:
+        try:
+            cursor = conexion.cursor()
+            
+            sql= """
+             INSERT INTO grupos
+                (id_grupo, nombre_grupo, grado, grupo)
+                VALUES (%s, %s, %s, %s)
+            """
+            valores = (id_grupo, nombre_grupo, grado, grupo)
+
+            cursor.execute(sql, valores)
+            conexion.commit()
+
+            messagebox.showinfo("Grupo guardado correctamente")
+
+        except Error as e:
+            messagebox.showinfo("Error",str(e))
+
+        finally:
+            cursor.close()
+            conexion.close()
+
+            
+
+
+
+
+
+    
+        
+    
 
 
 modo_actual = "oscuro"
@@ -143,13 +204,55 @@ def ingresar():
     else:
         mensaje.config(text="Contraseña incorrecta.", fg=TEMAS[modo_actual]["error"])
 
+
+def cargar_alumnos():
+    alumnos_bd = []
+    conexion = conectar_bd()
+
+    if conexion is None:
+        return alumnos_bd
+
+    cursor = None
+
+    try:
+        cursor = conexion.cursor()
+
+        cursor.execute("""
+            SELECT id_alumno, nombre, apellido, id_grupo
+            FROM alumnos
+            ORDER BY id_grupo, id_alumno
+        """)
+
+        resultados = cursor.fetchall()
+
+        for id_alumno, nombre, apellido, id_grupo in resultados:
+            nombre_completo = nombre or ""
+
+            if apellido:
+                nombre_completo += " " + apellido
+
+            alumnos_bd.append({
+                "id_alumno": id_alumno,
+                "id_grupo": id_grupo,
+                "nombre": nombre_completo,
+                "asistencias": 0,
+                "faltas": 0,
+                "retardos": 0
+            })
+
+    except Error as e:
+        messagebox.showerror("Error al cargar alumnos", str(e))
+
+    finally:
+        if cursor:
+            cursor.close()
+        conexion.close()
+
+    return alumnos_bd
+
 #Panel del docente
 def abrir_docente():
-    alumnos = [
-        {"nombre": "Juan Pérez", "asistencias": 12, "faltas": 1, "retardos": 0},
-        {"nombre": "María López", "asistencias": 13, "faltas": 0, "retardos": 1},
-        {"nombre": "Carlos Gómez", "asistencias": 10, "faltas": 3, "retardos": 0}
-    ]
+    alumnos = cargar_alumnos()
     registros = []
     reportes_conducta = []
     sel_nombre = None
@@ -335,11 +438,45 @@ def abrir_docente():
         nombre = entrada_nombre.get().strip()
         if not nombre:
             return
+        conexion = conectar_bd()
+
         if any(a["nombre"].casefold() == nombre.casefold() for a in alumnos):
             return
-        alumnos.append({"nombre": nombre, "asistencias": 0, "faltas": 0, "retardos": 0})
-        entrada_nombre.delete(0, tk.END)
-        actualizar_tabla_checks()
+
+        if conexion:
+            try:
+                cursor = conexion.cursor()
+                cursor.execute("SELECT MAX(id_alumno) FROM alumnos")
+                resultado = cursor.fetchone()
+                id_alumno = (resultado[0] or 0) + 1
+
+                id_grupo = 1
+
+                sql = """
+                    INSERT INTO alumnos
+                    (id_alumno, nombre, apellido, id_grupo)
+                    VALUES (%s, %s, %s, %s)
+                """
+                cursor.execute(sql, (id_alumno, nombre, "", id_grupo))
+                conexion.commit()
+
+                alumnos.append({
+                    "nombre": nombre,
+                    "asistencias": 0,
+                    "faltas": 0,
+                    "retardos": 0
+                })
+
+                entrada_nombre.delete(0, tk.END)
+                actualizar_tabla_checks()
+
+            except Error as e:
+                messagebox.showerror("Error", str(e))
+
+            finally:
+                cursor.close()
+                conexion.close()
+
 
     def eliminar_alumno():
         nonlocal sel_nombre
@@ -386,15 +523,15 @@ def abrir_docente():
                 elif tipo == "Retardo" and vr.get():
                     va.set(False); vf.set(False)
                     registrar_check(al_nombre, "Retardo")
-
-            tk.Checkbutton(fila, variable=var_a, bg=bg_fila, activebackground=bg_fila,
-                           command=lambda t="Presente", va=var_a, vf=var_f, vr=var_r, n=alumno["nombre"]: on_check(t, n, va, vf, vr)).pack(side="left", padx=22)
-            tk.Checkbutton(fila, variable=var_f, bg=bg_fila, activebackground=bg_fila,
-                           command=lambda t="Falta", va=var_a, vf=var_f, vr=var_r, n=alumno["nombre"]: on_check(t, n, va, vf, vr)).pack(side="left", padx=22)
             tk.Checkbutton(fila, variable=var_r, bg=bg_fila, activebackground=bg_fila,
                            command=lambda t="Retardo", va=var_a, vf=var_f, vr=var_r, n=alumno["nombre"]: on_check(t, n, va, vf, vr)).pack(side="left", padx=22)
             tk.Label(fila, text=f"({alumno['asistencias']}/{alumno['faltas']}/{alumno['retardos']})",
                      bg=bg_fila, fg=C("secundario"), font=("Segoe UI", 9)).pack(side="left", padx=10)
+            tk.Checkbutton(fila, variable=var_a, bg=bg_fila, activebackground=bg_fila,
+                           command=lambda t="Presente", va=var_a, vf=var_f, vr=var_r, n=alumno["nombre"]: on_check(t, n, va, vf, vr)).pack(side="left", padx=22)
+            tk.Checkbutton(fila, variable=var_f, bg=bg_fila, activebackground=bg_fila,
+                           command=lambda t="Falta", va=var_a, vf=var_f, vr=var_r, n=alumno["nombre"]: on_check(t, n, va, vf, vr)).pack(side="left", padx=22)
+
 
     def mostrar_inicio():
         nonlocal entrada_nombre, entrada_fecha, frame_tabla_checks
@@ -669,14 +806,58 @@ def abrir_director():
 
     def C_DIR(clave):
         return TEMAS_DIR[tema_actual][clave]
+    
+    grupos = {}
 
-    grupos = {f"{n}° A": [f"Alumno {i}" for i in range(1, 15)] for n in range(1, 7)}
+    conexion = conectar_bd()
+    cursor = None
+
+    if conexion:
+        try:
+            cursor = conexion.cursor()
+
+            cursor.execute("""
+                SELECT g.nombre_grupo, a.nombre, a.apellido
+                FROM grupos g
+                LEFT JOIN alumnos a ON g.id_grupo = a.id_grupo
+                ORDER BY g.id_grupo, a.id_alumno
+            """)
+
+            resultados = cursor.fetchall()
+
+            for nombre_grupo, nombre, apellido in resultados:
+                if nombre_grupo not in grupos:
+                    grupos[nombre_grupo] = []
+
+                if nombre:
+                    nombre_completo = nombre
+
+                    if apellido:
+                        nombre_completo += " " + apellido
+
+                    grupos[nombre_grupo].append(nombre_completo)
+
+        except Error as e:
+            messagebox.showerror("Error", str(e))
+
+        finally:
+            if cursor:
+                cursor.close()
+            conexion.close()
+
     alumnos = [alumno for lista in grupos.values() for alumno in lista]
-    registros = {(grupo, alumno): "Presente" for grupo, lista in grupos.items() for alumno in lista}
+
+    registros = {
+        (grupo, alumno): "Presente"
+        for grupo, lista in grupos.items()
+        for alumno in lista
+    }
+
     eventos = []
 
-    estilo = ttk.Style()
+    estilo= ttk.Style()
     estilo.theme_use("clam")
+
 
     def configurar_estilos():
         estilo.configure("Treeview", background=C_DIR("panel"), foreground=C_DIR("texto"),
