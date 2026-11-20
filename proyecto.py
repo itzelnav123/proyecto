@@ -3,6 +3,8 @@ from tkinter import ttk, messagebox, filedialog
 from datetime import datetime, date
 import calendar
 import mysql.connector
+from fpdf import FPDF
+
 def conectar():
     return mysql.connector.connect(
         host="localhost",
@@ -868,9 +870,6 @@ def abrir_director():
             w.destroy()
         opciones = [("⌂   Inicio", "inicio"), ("▤   Asistencia", "asistencia"),
                     ("▦   Calendario", "calendario"), ("✎   Carta compromiso", "carta"),("✎   Seguimiento", "seguimiento")]
-        compacto = ventana_dir.winfo_width() < 760
-                    ("▦   Calendario", "calendario"), ("✎   Carta compromiso", "carta")]
-        compacto = False
         for texto, clave in opciones:
             texto_boton = texto if not compacto else texto.split("   ")[-1]
             seleccionado = vista_actual == clave
@@ -1038,6 +1037,37 @@ def abrir_director():
                     messagebox.showinfo("Guardado", "La carta se guardó correctamente.")
                 except OSError as error:
                     messagebox.showerror("Error al guardar", str(error))
+        def guardar_pdf():
+                    texto_carta = vista.get("1.0", "end-1c").strip()
+                    alumno= ent_alumno.get().strip()
+                    if not texto_carta:
+                        messagebox.showwarning("Sin contenido", "Primero genera la carta."); return
+                    ruta = filedialog.asksaveasfilename(title="Guardar carta en PDF", defaultextension=".pdf", filetypes=[("PDF", "*.pdf")])
+                    if not ruta:
+                        return
+                    
+                    try:
+                        pdf = FPDF()
+                        pdf.add_page()
+
+                        pdf.set_auto_page_break(auto=True, margin=15)
+                        pdf.set_font("Helvetica","B", 16)
+                        pdf.cell(0, 10, "Carta compromiso escolar", In=True, align="C")
+                        pdf.ln(5)
+                        pdf.set_font("Helvetica", "", 12)
+                        texto_limpio = texto_carta.encode("latin-1", "replace").decode("latin-1")
+                        pdf.multi_cell(0, 8, texto_limpio)
+                        pdf.output(ruta)
+                        messagebox.showinfo("Listo", f"PDF guardado en:\n{ruta}")
+                    except Exception as error:
+                        messagebox.showerror("Error", str(error))
+
+                    
+                        with open(ruta, "w", encoding="utf-8") as archivo:
+                            archivo.write(texto_carta)
+                        messagebox.showinfo("Guardado", "La carta se guardó correctamente.")
+                    except OSError as error:
+                        messagebox.showerror("Error al guardar", str(error))
         def limpiar_carta():
             ent_alumno.delete(0, "end")
             ent_motivo.delete(0, "end")
